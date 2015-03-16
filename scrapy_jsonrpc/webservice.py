@@ -44,6 +44,43 @@ class JsonRpcResource(JsonResource):
         return self._target
 
 
+class DownloaderStatusResource(JsonRpcResource):
+
+    ws_name = 'downloader_status'
+
+    def __init__(self, crawler):
+        JsonRpcResource.__init__(self, crawler, crawler)
+
+    def render_GET(self, txrequest):
+        slots = self.crawler.engine.downloader.slots
+        stats = {}
+        transferring = 0
+        idle_slots = 0
+        nonempty_queue = 0
+        for (key, slot) in slots.iteritems():
+            stats[key] = {
+                'active': len(slot.active),
+                'queue': len(slot.queue),
+                'transferring': len(slot.transferring),
+                'concurrency': slot.concurrency,
+                'delay': slot.delay,
+                'randomize_delay': slot.randomize_delay,
+                'free_transfer_slots': slot.free_transfer_slots()
+            }
+
+            if not slot.transferring and not slot.queue:
+                idle_slots += 1
+
+            if len(slot.queue) > 0:
+                nonempty_queue += 1
+
+            transferring += len(slot.transferring)
+        return [stats, {"total_slots": len(slots),
+                        "total_transferring": transferring,
+                        "idle_slots": idle_slots,
+                        "nonempty_queue": nonempty_queue}]
+
+
 class CrawlerResource(JsonRpcResource):
 
     ws_name = 'crawler'
@@ -73,7 +110,8 @@ class WebService(server.Site):
         self.portrange = [int(x) for x in crawler.settings.getlist('JSONRPC_PORT', [6023, 6073])]
         self.host = crawler.settings.get('JSONRPC_HOST', '127.0.0.1')
         root = RootResource(crawler)
-        root.putChild('crawler', CrawlerResource)
+        root.putChild('crawler', CrawlerResource(self.crawler))
+        root.putChild('downloader_status', DownloaderStatusResource(self.crawler))
         server.Site.__init__(self, root, logPath=logfile)
         self.noisy = False
         crawler.signals.connect(self.start_listening, signals.engine_started)

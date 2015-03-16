@@ -26,6 +26,7 @@ def get_commands():
         'list-resources': cmd_list_resources,
         'get-global-stats': cmd_get_global_stats,
         'get-spider-stats': cmd_get_spider_stats,
+        'get-downloader-status': cmd_downloader_status,
     }
 
 def cmd_help(args, opts):
@@ -42,6 +43,10 @@ def cmd_list_running(args, opts):
     """list-running - list running spiders"""
     for x in json_get(opts, 'crawler/engine/open_spiders'):
         print(x)
+
+def cmd_downloader_status(args, opts):
+    """list-running - list running spiders"""
+    print (json_get(opts, 'downloader_status', json=False))
 
 def cmd_list_available(args, opts):
     """list-available - list name of available spiders"""
@@ -72,9 +77,20 @@ def jsonrpc_call(opts, path, method, *args, **kwargs):
     url = get_wsurl(opts, path)
     return jsonrpc_client_call(url, method, *args, **kwargs)
 
-def json_get(opts, path):
+def json_get(opts, path, json=True):
     url = get_wsurl(opts, path)
-    return json.loads(urllib.urlopen(url).read())
+    hndl = urllib.urlopen(url)
+    content = hndl.read()
+    try:
+        if json:
+            return json.loads(content)
+        else:
+            return content
+    except ValueError, ve:
+        print(ve, file=sys.stderr)
+        print(hndl.info(), file=sys.stderr)
+        print(content)
+
 
 def parse_opts():
     usage = "%prog [options] <command> [arg] ..."
